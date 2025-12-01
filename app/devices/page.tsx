@@ -1,14 +1,10 @@
-import { fetchAPI } from "../../lib/api";
+import { fetchAPI } from "@/lib/api";
 import Link from "next/link";
 
 interface DeviceStatus {
   device_id: string;
   last_seen: string;
 }
-
-
-
-// temporary rebuild trigger
 
 export default async function DevicesPage() {
   const devices: DeviceStatus[] = await fetchAPI("/devices");
@@ -37,4 +33,3 @@ export default async function DevicesPage() {
     </main>
   );
 }
-
