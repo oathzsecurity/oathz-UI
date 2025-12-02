@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, use } from "react";
 
 interface DeviceEvent {
   device_id: string;
@@ -13,8 +13,8 @@ interface DeviceEvent {
   last_seen: string;
 }
 
-export default function DeviceDetailPage({ params }: { params: { id: string } }) {
-  const { id } = params;
+export default function DeviceDetailPage(props: { params: Promise<{ id: string }> }) {
+  const { id } = use(props.params); // ✅ FIX — unwrap params safely
 
   const [events, setEvents] = useState<DeviceEvent[] | null>(null);
   const [loading, setLoading] = useState(true);
@@ -36,6 +36,7 @@ export default function DeviceDetailPage({ params }: { params: { id: string } })
   }, [id]);
 
   if (loading) return <p style={{ padding: "24px" }}>Loading device data…</p>;
+
   if (!events || events.length === 0)
     return <p style={{ padding: "24px" }}>No data received yet for this device.</p>;
 
@@ -53,7 +54,8 @@ export default function DeviceDetailPage({ params }: { params: { id: string } })
           color: "#0f0",
           padding: "16px",
           borderRadius: "8px",
-          overflowX: "auto"
+          overflowX: "auto",
+          whiteSpace: "pre-wrap"
         }}
       >
         {JSON.stringify(events, null, 2)}
