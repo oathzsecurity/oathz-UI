@@ -1,13 +1,21 @@
-export async function fetchAPI(path: string) {
-  const base = "https://api.oathzsecurity.com";   // ❤️ POINT UI TO BACKEND
+export async function fetchAPI(path: string, options: RequestInit = {}) {
+  const base = "https://api.oathzsecurity.com";  // YOUR LIVE BACKEND
 
-  const url = `${base}${path}`;
-
-  const res = await fetch(url, { cache: "no-store" });
+  const res = await fetch(base + path, {
+    ...options,
+    cache: "no-store",
+  });
 
   if (!res.ok) {
-    throw new Error(`API error: ${res.status} ${await res.text()}`);
+    console.error("API ERROR:", res.status, await res.text());
+    throw new Error(`API error: ${res.status}`);
   }
 
   return res.json();
 }
+
+
+
+
+
+
