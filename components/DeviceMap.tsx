@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
-// Fix default marker icons (Vercel optimization issue)
+// ---- Fix Vercel Leaflet Icon Path Issue ----
 delete (L.Icon.Default.prototype as any)._getIconUrl;
 
 L.Icon.Default.mergeOptions({
@@ -31,37 +31,36 @@ export default function DeviceMap({
   useEffect(() => {
     if (!latitude || !longitude) return;
 
-    // ---- Prevent Leaflet from double mounting ----
-   const container = L.DomUtil.get("device-map") as any;
-if (container != null) {
-  container._leaflet_id = null;
-}
+    // ---- Prevent double mounting ----
+    const container = L.DomUtil.get("device-map") as any;
+    if (container && container._leaflet_id) {
+      container._leaflet_id = null;
+    }
 
-    // ---- Create the map ----
+    // ---- Create Map ----
     const map = L.map("device-map").setView([latitude, longitude], 17);
 
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       attribution: "&copy; OpenStreetMap contributors",
     }).addTo(map);
 
-    // ---- Add Marker ----
+    // ---- Marker ----
     L.marker([latitude, longitude]).addTo(map);
 
-    // ---- Breadcrumb Polyline ----
+    // ---- Breadcrumb Trail ----
     if (points.length > 1) {
-      const polylinePoints = points.map((p) => [
-        p.latitude,
-        p.longitude,
-      ]) as [number, number][];
+      const path = points.map((p) => [p.latitude, p.longitude]) as [
+        number,
+        number
+      ][];
 
-      L.polyline(polylinePoints, {
+      L.polyline(path, {
         color: "red",
         weight: 3,
         opacity: 0.8,
       }).addTo(map);
     }
 
-    // ---- Cleanup ----
     return () => {
       map.remove();
     };

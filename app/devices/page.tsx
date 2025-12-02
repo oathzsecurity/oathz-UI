@@ -3,11 +3,17 @@ import Link from "next/link";
 
 interface DeviceStatus {
   device_id: string;
-  last_seen: string;
+  last_seen: string | null;
 }
 
 export default async function DevicesPage() {
-  const devices: DeviceStatus[] = await fetchAPI("/devices");
+  let devices: DeviceStatus[] = [];
+
+  try {
+    devices = await fetchAPI("/devices");
+  } catch (err) {
+    console.error("Error loading devices:", err);
+  }
 
   return (
     <main style={{ padding: "24px" }}>
@@ -25,7 +31,7 @@ export default async function DevicesPage() {
               {dev.device_id}
             </Link>
             <div className="text-sm opacity-70">
-              Last seen: {dev.last_seen}
+              Last seen: {dev.last_seen || "Never"}
             </div>
           </li>
         ))}

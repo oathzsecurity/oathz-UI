@@ -1,137 +1,79 @@
-"use client";
-
-import { use, useEffect, useState, useRef } from "react";
-import DeviceMap from "@/components/DeviceMap";
 import { fetchAPI } from "@/lib/api";
+import DeviceMap from "@/components/DeviceMap";
+import Link from "next/link";
 
 interface DeviceEvent {
+  id: number;
   device_id: string;
   latitude: number | null;
   longitude: number | null;
-  gps_fix: boolean;
-  movement_confirmed: boolean;
+  mac_addresses: string[];
   timestamp: string;
-  event_type: string;
-  state?: string;
 }
 
-export default function DeviceDetailPage({ params }: { params: { id: string } }) {
-  const { id } = params;
+interface DeviceStatus {
+  device_id: string;
+  last_seen: string;
+}
 
+export default async function DeviceDetail({ params }: { params: { id: string } }) {
+  const id = params.id;
 
-  const [events, setEvents] = useState<DeviceEvent[]>([]);
-  const [loading, setLoading] = useState(true);
+  // -------- Fetch Device Status --------
+  let device: DeviceStatus | null = null;
+  try {
+    device = await fetchAPI(`/device/${id}/status`);
+  } catch (err) {
+    console.error("Status error:", err);
+  }
 
-  // Breadcrumb trail
-  const [points, setPoints] = useState<{ latitude: number; longitude: number }[]>([]);
-
-  // LIVE flashing
-  const [isLive, setIsLive] = useState(false);
-
-  // Interval reference
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
-
-  // ----------------------------------------
-  // FETCH DEVICE EVENTS
-  // ----------------------------------------
-  const loadEvents = async () => {
-    try {
-      const json = await fetchAPI(`/device/${id}/events`);
-
-      if (json && Array.isArray(json) && json.length > 0) {
-        setEvents(json);
-
-        // Build breadcrumb trail
-        const valid = json.filter((e) => e.latitude !== null && e.longitude !== null);
-
-        setPoints(
-          valid.map((e) => ({
-            latitude: e.latitude as number,
-            longitude: e.longitude as number,
-          }))
-        );
-
-        // Flash the LIVE icon
-        setIsLive(true);
-        setTimeout(() => setIsLive(false), 1200);
-      }
-    } catch (err) {
-      console.error("Error loading events:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // ----------------------------------------
-  // AUTO-REFRESH EVERY 5 SEC
-  // ----------------------------------------
-  useEffect(() => {
-    loadEvents(); // initial fetch
-
-    intervalRef.current = setInterval(() => {
-      loadEvents();
-    }, 5000);
-
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
-  }, [id]);
+  // -------- Fetch Events --------
+  let events: DeviceEvent[] = [];
+  try {
+    const res = await fetchAPI(`/device/${id}/events`);
+    if (Array.isArray(res)) events = res;
+  } catch (err) {
+    console.error("Event error:", err);
+  }
 
   const latest = events.length > 0 ? events[0] : null;
 
   return (
-    <main className="p-6 max-w-5xl mx-auto">
-      {/* HEADER */}
-      <div className="flex items-center gap-3 mb-4">
-        <h1 className="text-2xl font-bold">Device: {id}</h1>
+    <main style={{ padding: "24px" }}>
+      <Link href="/devices" className="text-blue-600 underline">
+        ← Back to Devices
+      </Link>
 
-        {isLive ? (
-          <span className="animate-ping h-3 w-3 rounded-full bg-red-500 opacity-75"></span>
-        ) : (
-          <span className="h-3 w-3 rounded-full bg-red-600"></span>
-        )}
+      <h1 className="text-3xl font-bold mt-6 mb-4">
+        Device: {id}{" "}
+        <span className="text-red-600 text-xl font-semibold">● LIVE</span>
+      </h1>
 
-        <span className="text-sm text-red-500 font-semibold">LIVE</span>
-      </div>
+      {!latest && <p>Waiting for first GPS coordinates…</p>}
 
-      {/* MAP */}
-      {latest && latest.latitude && latest.longitude ? (
-        <DeviceMap
-          deviceId={id}
-          latitude={latest.latitude}
-          longitude={latest.longitude}
-          points={points}
-        />
-      ) : (
-        <p className="text-zinc-500 mb-4">Waiting for first GPS coordinates…</p>
-      )}
+      {latest && (
+        <>
+          <h2 className="mt-4 text-xl font-semibold">Latest Event</h2>
+          <p className="mt-1 opacity-80">
+            {latest.timestamp}
+          </p>
+          <p className="mt-1">
+            Lat: {latest.latitude} <br />
+            Lon: {latest.longitude}
+          </p>
 
-      {/* LATEST EVENT */}
-      <section className="mt-6">
-        <h2 className="text-lg font-semibold mb-2">Latest Event</h2>
-
-        {loading && <p className="text-zinc-500">Loading…</p>}
-
-        {!loading && !latest && (
-          <p className="text-zinc-500">No events found yet for this device.</p>
-        )}
-
-        {latest && (
-          <pre className="overflow-x-auto bg-black text-green-300 p-4 rounded-lg text-sm">
-            {JSON.stringify(latest, null, 2)}
-          </pre>
-        )}
-      </section>
-
-      {/* FULL EVENT LIST */}
-      {events.length > 1 && (
-        <section className="mt-6">
-          <h2 className="text-lg font-semibold mb-2">Event History</h2>
-
-          <pre className="overflow-x-auto bg-zinc-900 text-emerald-300 p-4 rounded-lg text-sm">
-            {JSON.stringify(events, null, 2)}
-          </pre>
-        </section>
+          <div className="mt-6">
+            <DeviceMap
+              latitude={latest.latitude}
+              longitude={latest.longitude}
+              deviceId={id}
+              points={events.map(e => ({
+                latitude: e.latitude!,
+                longitude: e.longitude!,
+              }))}
+            />
+          </div>
+        </>
       )}
     </main>
   );
