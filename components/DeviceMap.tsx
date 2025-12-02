@@ -4,9 +4,8 @@ import { useEffect } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
-// ---- Fix Vercel Leaflet Icon Path Issue ----
+// Fix icon paths on Vercel
 delete (L.Icon.Default.prototype as any)._getIconUrl;
-
 L.Icon.Default.mergeOptions({
   iconRetinaUrl:
     "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
@@ -16,8 +15,8 @@ L.Icon.Default.mergeOptions({
 });
 
 interface Props {
-  latitude: number | null;
-  longitude: number | null;
+  latitude: number;
+  longitude: number;
   deviceId: string;
   points?: { latitude: number; longitude: number }[];
 }
@@ -29,32 +28,23 @@ export default function DeviceMap({
   points = [],
 }: Props) {
   useEffect(() => {
-    if (!latitude || !longitude) return;
-
-    // ---- Prevent double mounting ----
     const container = L.DomUtil.get("device-map") as any;
-    if (container && container._leaflet_id) {
-      container._leaflet_id = null;
-    }
+    if (container && container._leaflet_id) container._leaflet_id = null;
 
-    // ---- Create Map ----
     const map = L.map("device-map").setView([latitude, longitude], 17);
 
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       attribution: "&copy; OpenStreetMap contributors",
     }).addTo(map);
 
-    // ---- Marker ----
     L.marker([latitude, longitude]).addTo(map);
 
-    // ---- Breadcrumb Trail ----
     if (points.length > 1) {
-      const path = points.map((p) => [p.latitude, p.longitude]) as [
+      const line = points.map((p) => [p.latitude, p.longitude]) as [
         number,
         number
       ][];
-
-      L.polyline(path, {
+      L.polyline(line, {
         color: "red",
         weight: 3,
         opacity: 0.8,

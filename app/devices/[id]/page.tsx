@@ -19,7 +19,9 @@ export default function DeviceDetailPage() {
   const [events, setEvents] = useState<DeviceEvent[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // ------------- helpers -------------
+  // ---------------------------------------------------
+  // Helpers
+  // ---------------------------------------------------
 
   function timeAgo(ts: string) {
     const diffMs = Date.now() - new Date(ts).getTime();
@@ -31,65 +33,60 @@ export default function DeviceDetailPage() {
     return `${diffHr}h ago`;
   }
 
-  // Haversine distance in meters between two lat/lon points
-  function distanceMeters(
-    lat1: number,
-    lon1: number,
-    lat2: number,
-    lon2: number
-  ) {
+  // Haversine distance in meters
+  function distanceMeters(lat1: number, lon1: number, lat2: number, lon2: number) {
     const toRad = (v: number) => (v * Math.PI) / 180;
-    const R = 6371000; // Earth radius in m
+    const R = 6371000;
     const dLat = toRad(lat2 - lat1);
     const dLon = toRad(lon2 - lon1);
     const a =
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.sin(dLat / 2) ** 2 +
       Math.cos(toRad(lat1)) *
         Math.cos(toRad(lat2)) *
-        Math.sin(dLon / 2) *
-        Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
+        Math.sin(dLon / 2) ** 2;
+    return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
   }
 
-  // ------------- data fetching -------------
+  // ---------------------------------------------------
+  // Data fetching
+  // ---------------------------------------------------
 
   useEffect(() => {
-    async function fetchEvents() {
+    async function load() {
       try {
         const res = await fetch(
           `https://api.oathzsecurity.com/device/${id}/events`,
           { cache: "no-store" }
         );
-        const data = await res.json();
+        const json = await res.json();
 
-        // sort oldest → newest
-        const sorted = [...data].sort(
+        // Sort oldest → newest
+        const sorted = [...json].sort(
           (a, b) =>
-            new Date(a.timestamp).getTime() -
-            new Date(b.timestamp).getTime()
+            new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
         );
 
         setEvents(sorted);
       } catch (err) {
-        console.error("Error fetching events:", err);
+        console.error("Failed to fetch events:", err);
       } finally {
         setLoading(false);
       }
     }
 
-    fetchEvents();
-
-    const interval = setInterval(fetchEvents, 5000); // live polling
+    load();
+    const interval = setInterval(load, 5000);
     return () => clearInterval(interval);
   }, [id]);
 
-  // ------------- loading / empty states -------------
+  // ---------------------------------------------------
+  // Loading / empty states
+  // ---------------------------------------------------
 
   if (loading) {
     return (
-      <main style={{ padding: 24 }}>
-        <h1 style={{ fontSize: 24, fontWeight: "bold" }}>Device: {id}</h1>
+      <main className="p-6">
+        <h1 className="text-xl font-bold">Device: {id}</h1>
         <p>Loading events…</p>
       </main>
     );
@@ -97,53 +94,48 @@ export default function DeviceDetailPage() {
 
   if (!events || events.length === 0) {
     return (
-      <main style={{ padding: 24 }}>
-        <h1 style={{ fontSize: 24, fontWeight: "bold" }}>Device: {id}</h1>
-        <p>No events received yet.</p>
+      <main className="p-6">
+        <h1 className="text-xl font-bold">Device: {id}</h1>
+        <p>No events yet.</p>
       </main>
     );
   }
 
-  // ------------- derive latest + mode -------------
+  // ---------------------------------------------------
+  // Determine Online / Chase / Breadcrumb
+  // ---------------------------------------------------
 
-  const gpsEvents = events.filter(
-    (e) => e.latitude !== null && e.longitude !== null
-  );
+  const gpsEvents = events.filter((e) => e.latitude !== null && e.longitude !== null);
 
-  // If for some reason no gps events yet, still show last seen text
-  const latest = gpsEvents.length > 0 ? gpsEvents[gpsEvents.length - 1] : events[events.length - 1];
+  const latest = gpsEvents.length > 0
+    ? gpsEvents[gpsEvents.length - 1]
+    : events[events.length - 1];
 
   const latestTs = new Date(latest.timestamp).getTime();
-  const ageMs = Date.now() - latestTs;
+  const isOnline = Date.now() - latestTs < 20_000;
 
-  // offline if no event in last 20 seconds
-  const isOnline = ageMs < 20_000;
-
-  // CHASE MODE: total movement >= 10m
   let isChaseMode = false;
   let breadcrumbPoints: { latitude: number; longitude: number }[] = [];
 
   if (isOnline && gpsEvents.length >= 2) {
-    const first = gpsEvents[0];
-    const last = gpsEvents[gpsEvents.length - 1];
-
-    const totalMove = distanceMeters(
-      first.latitude as number,
-      first.longitude as number,
-      last.latitude as number,
-      last.longitude as number
+    const totalDistance = distanceMeters(
+      gpsEvents[0].latitude!,
+      gpsEvents[0].longitude!,
+      gpsEvents[gpsEvents.length - 1].latitude!,
+      gpsEvents[gpsEvents.length - 1].longitude!
     );
 
-    if (totalMove >= 10) {
+    if (totalDistance >= 10) {
       isChaseMode = true;
+
       breadcrumbPoints = gpsEvents.map((e) => ({
-        latitude: e.latitude as number,
-        longitude: e.longitude as number,
+        latitude: e.latitude!,
+        longitude: e.longitude!,
       }));
     }
   }
 
-  // If offline → force no breadcrumb trail
+  // If offline → always wipe trail
   if (!isOnline) {
     isChaseMode = false;
     breadcrumbPoints = [];
@@ -152,96 +144,51 @@ export default function DeviceDetailPage() {
   const hasGPS =
     latest.latitude !== null &&
     latest.longitude !== null &&
-    !isNaN(latest.latitude as number) &&
-    !isNaN(latest.longitude as number);
+    !isNaN(latest.latitude) &&
+    !isNaN(latest.longitude);
 
-  // ------------- render -------------
+  // ---------------------------------------------------
+  // Render
+  // ---------------------------------------------------
 
   return (
-    <main style={{ padding: 24 }}>
-      <h1 style={{ fontSize: 28, fontWeight: "bold" }}>
-        Device: {id}
-      </h1>
+    <main className="p-6">
+      <h1 className="text-2xl font-bold">Device: {id}</h1>
 
-      <p style={{ marginTop: 4, color: "#888" }}>
+      <p className="text-zinc-500 mt-1">
         Status:{" "}
-        <span
-          style={{
-            fontWeight: "bold",
-            color: isOnline ? "#16a34a" : "#dc2626",
-          }}
-        >
+        <span className={isOnline ? "text-green-500" : "text-red-500"}>
           {isOnline ? "ONLINE" : "OFFLINE"}
         </span>{" "}
-        · Last seen{" "}
-        <span style={{ fontWeight: "bold" }}>
-          {timeAgo(latest.timestamp)}
-        </span>
+        · Last seen <span className="font-bold">{timeAgo(latest.timestamp)}</span>
       </p>
 
-      <p style={{ marginTop: 4, color: "#888" }}>
-        Mode:{" "}
-        <span style={{ fontWeight: "bold" }}>
-          {isChaseMode ? "CHASE" : "HEARTBEAT"}
-        </span>
+      <p className="text-zinc-500">
+        Mode: <span className="font-bold">{isChaseMode ? "CHASE" : "HEARTBEAT"}</span>
       </p>
 
-      <div style={{ marginTop: 24 }}>
+      <div className="mt-6">
         {hasGPS ? (
           <DeviceMap
-            latitude={latest.latitude as number}
-            longitude={latest.longitude as number}
+            latitude={latest.latitude!}
+            longitude={latest.longitude!}
             deviceId={id}
             points={breadcrumbPoints}
           />
         ) : (
-          <p>No GPS fix yet for this device.</p>
+          <p>No GPS fix yet.</p>
         )}
       </div>
 
-      <h2
-        style={{
-          marginTop: 32,
-          fontSize: 22,
-          fontWeight: "bold",
-        }}
-      >
-        Latest Event
-      </h2>
-
-      <pre
-        style={{
-          marginTop: 12,
-          padding: 16,
-          background: "#111",
-          color: "#0f0",
-          borderRadius: 8,
-          overflowX: "auto",
-        }}
-      >
+      <h2 className="mt-8 text-xl font-bold">Latest Event</h2>
+      <pre className="mt-2 bg-black text-green-400 p-4 rounded-lg text-sm overflow-x-auto">
         {JSON.stringify(latest, null, 2)}
       </pre>
 
-      <h2
-        style={{
-          marginTop: 32,
-          fontSize: 22,
-          fontWeight: "bold",
-        }}
-      >
+      <h2 className="mt-8 text-xl font-bold">
         All Events ({events.length})
       </h2>
-
-      <pre
-        style={{
-          marginTop: 12,
-          padding: 16,
-          background: "#111",
-          color: "#0f0",
-          borderRadius: 8,
-          overflowX: "auto",
-        }}
-      >
+      <pre className="mt-2 bg-black text-green-400 p-4 rounded-lg text-sm overflow-x-auto">
         {JSON.stringify(events, null, 2)}
       </pre>
     </main>
