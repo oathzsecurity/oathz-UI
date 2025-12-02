@@ -16,8 +16,19 @@ export default function DeviceDetailPage() {
   const params = useParams();
   const id = params.id as string;
 
-  const [events, setEvents] = useState<DeviceEvent[] | null>(null);
+  const [events, setEvents] = useState<DeviceEvent[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Convert timestamp → "X seconds ago"
+  function timeAgo(ts: string) {
+    const diffMs = Date.now() - new Date(ts).getTime();
+    const diffSec = Math.floor(diffMs / 1000);
+    if (diffSec < 60) return `${diffSec}s ago`;
+    const diffMin = Math.floor(diffSec / 60);
+    if (diffMin < 60) return `${diffMin}m ago`;
+    const diffHr = Math.floor(diffMin / 60);
+    return `${diffHr}h ago`;
+  }
 
   useEffect(() => {
     async function fetchEvents() {
@@ -27,7 +38,15 @@ export default function DeviceDetailPage() {
           { cache: "no-store" }
         );
         const data = await res.json();
-        setEvents(data);
+
+        // Ensure it's sorted newest → oldest
+        const sorted = [...data].sort(
+          (a, b) =>
+            new Date(a.timestamp).getTime() -
+            new Date(b.timestamp).getTime()
+        );
+
+        setEvents(sorted);
       } catch (err) {
         console.error("Error fetching events:", err);
       } finally {
@@ -36,12 +55,17 @@ export default function DeviceDetailPage() {
     }
 
     fetchEvents();
+
+    // 🔥 Auto-refresh every 5 seconds
+    const interval = setInterval(fetchEvents, 5000);
+
+    return () => clearInterval(interval);
   }, [id]);
 
   if (loading) {
     return (
       <main style={{ padding: 24 }}>
-        <h1 className="text-3xl font-bold">Device: {id}</h1>
+        <h1 style={{ fontSize: 24, fontWeight: "bold" }}>Device: {id}</h1>
         <p>Loading events…</p>
       </main>
     );
@@ -50,18 +74,27 @@ export default function DeviceDetailPage() {
   if (!events || events.length === 0) {
     return (
       <main style={{ padding: 24 }}>
-        <h1 className="text-3xl font-bold">Device: {id}</h1>
-        <p>No events found yet for this device.</p>
+        <h1 style={{ fontSize: 24, fontWeight: "bold" }}>Device: {id}</h1>
+        <p>No events received yet.</p>
       </main>
     );
   }
 
-  // Latest event is the LAST one in the array (ASC order)
+  // Always use the latest event
   const latest = events[events.length - 1];
 
   return (
     <main style={{ padding: 24 }}>
-      <h1 className="text-3xl font-bold mb-4">Device: {id}</h1>
+      <h1 style={{ fontSize: 28, fontWeight: "bold" }}>
+        Device: {id}
+      </h1>
+
+      <p style={{ marginTop: 4, color: "#888" }}>
+        Last seen:{" "}
+        <span style={{ fontWeight: "bold" }}>
+          {timeAgo(latest.timestamp)}
+        </span>
+      </p>
 
       <div style={{ marginTop: 24 }}>
         <DeviceMap
@@ -71,7 +104,16 @@ export default function DeviceDetailPage() {
         />
       </div>
 
-      <h2 className="text-xl font-bold mt-10">Latest Event</h2>
+      <h2
+        style={{
+          marginTop: 32,
+          fontSize: 22,
+          fontWeight: "bold",
+        }}
+      >
+        Latest Event
+      </h2>
+
       <pre
         style={{
           marginTop: 12,
@@ -85,9 +127,16 @@ export default function DeviceDetailPage() {
         {JSON.stringify(latest, null, 2)}
       </pre>
 
-      <h2 className="text-xl font-bold mt-10">
+      <h2
+        style={{
+          marginTop: 32,
+          fontSize: 22,
+          fontWeight: "bold",
+        }}
+      >
         All Events ({events.length})
       </h2>
+
       <pre
         style={{
           marginTop: 12,
