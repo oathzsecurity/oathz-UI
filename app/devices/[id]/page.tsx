@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { use, useEffect, useState, useRef } from "react";
 import DeviceMap from "@/components/DeviceMap";
 import { fetchAPI } from "@/lib/api";
 
@@ -15,29 +15,24 @@ interface DeviceEvent {
   state?: string;
 }
 
-export default function DeviceDetailPage({
-  params,
-}: {
-  params: { id: string };
-}) {
-  const { id } = params;
+export default function DeviceDetailPage(props: { params: Promise<{ id: string }> }) {
+  // ✅ Unwrap Next.js params Promise using use()
+  const { id } = use(props.params);
 
   const [events, setEvents] = useState<DeviceEvent[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // breadcrumb history = array of { lat, lng }
-  const [points, setPoints] = useState<{ latitude: number; longitude: number }[]>(
-    []
-  );
+  // Breadcrumb trail
+  const [points, setPoints] = useState<{ latitude: number; longitude: number }[]>([]);
 
-  // LIVE flashing indicator
+  // LIVE flashing
   const [isLive, setIsLive] = useState(false);
 
-  // ⚡ polling interval reference
+  // Interval reference
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // ----------------------------------------
-  // AUTO-FETCH FUNCTION
+  // FETCH DEVICE EVENTS
   // ----------------------------------------
   const loadEvents = async () => {
     try {
@@ -46,10 +41,8 @@ export default function DeviceDetailPage({
       if (json && Array.isArray(json) && json.length > 0) {
         setEvents(json);
 
-        // Update breadcrumb trail
-        const valid = json.filter(
-          (e) => e.latitude !== null && e.longitude !== null
-        );
+        // Build breadcrumb trail
+        const valid = json.filter((e) => e.latitude !== null && e.longitude !== null);
 
         setPoints(
           valid.map((e) => ({
@@ -58,7 +51,7 @@ export default function DeviceDetailPage({
           }))
         );
 
-        // Trigger LIVE flashing
+        // Flash the LIVE icon
         setIsLive(true);
         setTimeout(() => setIsLive(false), 1200);
       }
@@ -70,7 +63,7 @@ export default function DeviceDetailPage({
   };
 
   // ----------------------------------------
-  // AUTO-REFRESH EVERY 5 SECONDS
+  // AUTO-REFRESH EVERY 5 SEC
   // ----------------------------------------
   useEffect(() => {
     loadEvents(); // initial fetch
@@ -84,22 +77,17 @@ export default function DeviceDetailPage({
     };
   }, [id]);
 
-  // ----------------------------------------
-  // Extract latest event
-  // ----------------------------------------
   const latest = events.length > 0 ? events[0] : null;
 
   return (
     <main className="p-6 max-w-5xl mx-auto">
-      {/* TITLE + LIVE INDICATOR */}
+      {/* HEADER */}
       <div className="flex items-center gap-3 mb-4">
         <h1 className="text-2xl font-bold">Device: {id}</h1>
 
-        {isLive && (
+        {isLive ? (
           <span className="animate-ping h-3 w-3 rounded-full bg-red-500 opacity-75"></span>
-        )}
-
-        {!isLive && (
+        ) : (
           <span className="h-3 w-3 rounded-full bg-red-600"></span>
         )}
 
@@ -112,13 +100,13 @@ export default function DeviceDetailPage({
           deviceId={id}
           latitude={latest.latitude}
           longitude={latest.longitude}
-          points={points} // breadcrumb trail
+          points={points}
         />
       ) : (
         <p className="text-zinc-500 mb-4">Waiting for first GPS coordinates…</p>
       )}
 
-      {/* RAW EVENT STREAM */}
+      {/* LATEST EVENT */}
       <section className="mt-6">
         <h2 className="text-lg font-semibold mb-2">Latest Event</h2>
 
