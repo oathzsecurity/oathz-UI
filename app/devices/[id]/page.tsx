@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useParams } from "next/navigation";
 import DeviceMap from "@/components/DeviceMap";
 
 interface DeviceEvent {
@@ -12,8 +13,9 @@ interface DeviceEvent {
   gps_fix: boolean;
 }
 
-export default function DeviceDetailPage({ params }: { params: { id: string } }) {
-  const id = params.id;
+export default function DeviceDetailPage() {
+  const params = useParams();
+  const id = params.id as string;
 
   const [events, setEvents] = useState<DeviceEvent[] | null>(null);
   const [loading, setLoading] = useState(true);
@@ -28,7 +30,7 @@ export default function DeviceDetailPage({ params }: { params: { id: string } })
         const data = await res.json();
         setEvents(data);
       } catch (err) {
-        console.error("Failed to fetch events", err);
+        console.error("Error fetching events:", err);
       } finally {
         setLoading(false);
       }
@@ -37,7 +39,6 @@ export default function DeviceDetailPage({ params }: { params: { id: string } })
     fetchEvents();
   }, [id]);
 
-  // Show spinner/loading while fetching
   if (loading) {
     return (
       <main style={{ padding: 24 }}>
@@ -47,7 +48,6 @@ export default function DeviceDetailPage({ params }: { params: { id: string } })
     );
   }
 
-  // Show "no data" message — BUT keep the UI container visible
   if (!events || events.length === 0) {
     return (
       <main style={{ padding: 24 }}>
@@ -57,10 +57,7 @@ export default function DeviceDetailPage({ params }: { params: { id: string } })
     );
   }
 
-  // We have events now
   const latest = events[events.length - 1];
-  const lat = latest.latitude;
-  const lon = latest.longitude;
 
   return (
     <main style={{ padding: 24 }}>
@@ -68,8 +65,8 @@ export default function DeviceDetailPage({ params }: { params: { id: string } })
 
       <div style={{ marginTop: 24 }}>
         <DeviceMap
-          latitude={lat}
-          longitude={lon}
+          latitude={latest.latitude}
+          longitude={latest.longitude}
           deviceId={id}
         />
       </div>
