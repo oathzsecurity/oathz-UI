@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
 
 interface DeviceEvent {
   device_id: string;
@@ -13,72 +13,51 @@ interface DeviceEvent {
   last_seen: string;
 }
 
-export default function DeviceDetailPage({ params }: any) {
+export default function DeviceDetailPage({ params }: { params: { id: string } }) {
   const { id } = params;
 
   const [events, setEvents] = useState<DeviceEvent[] | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function load() {
+    async function loadEvents() {
       try {
-        const res = await fetch(
-          `https://api.oathzsecurity.com/device/${id}/events`
-        );
-
-        if (!res.ok) {
-          console.error("API error:", res.status);
-          setEvents(null);
-          return;
-        }
-
-        const text = await res.text();
-
-        // backend returns a JSON string so we must parse it
-        const json = JSON.parse(text);
-
-        setEvents(json);
+        const res = await fetch(`https://api.oathzsecurity.com/device/${id}/events`);
+        const data = await res.json();
+        setEvents(data);
       } catch (err) {
-        console.error("Fetch error:", err);
+        console.error("Failed to load events:", err);
       } finally {
         setLoading(false);
       }
     }
 
-    load();
+    loadEvents();
   }, [id]);
 
-  if (loading) {
-    return (
-      <main style={{ padding: 24 }}>
-        <p>Loading device data…</p>
-      </main>
-    );
-  }
-
-  if (!events || events.length === 0) {
-    return (
-      <main style={{ padding: 24 }}>
-        <p>No data received yet for this device.</p>
-      </main>
-    );
-  }
-
-  const latest = events[events.length - 1];
+  if (loading) return <p style={{ padding: "24px" }}>Loading device data…</p>;
+  if (!events || events.length === 0)
+    return <p style={{ padding: "24px" }}>No data received yet for this device.</p>;
 
   return (
-    <main style={{ padding: 24 }}>
-      <h1 className="text-2xl font-bold mb-4">{id}</h1>
+    <main style={{ padding: "24px" }}>
+      <h1 className="text-3xl font-bold mb-6">Device: {id}</h1>
 
-      <div className="space-y-2 text-lg">
-        <div>State: {latest.state}</div>
-        <div>GPS Fix: {latest.gps_fix ? "Yes" : "No"}</div>
-        <div>Movement: {latest.movement_confirmed ? "Yes" : "No"}</div>
-        <div>
-          Location: {latest.latitude}, {latest.longitude}
-        </div>
-        <div>Last Seen: {latest.last_seen}</div>
+      <div className="text-sm opacity-70 mb-4">
+        {events.length} events loaded
       </div>
+
+      <pre
+        style={{
+          background: "#111",
+          color: "#0f0",
+          padding: "16px",
+          borderRadius: "8px",
+          overflowX: "auto"
+        }}
+      >
+        {JSON.stringify(events, null, 2)}
+      </pre>
     </main>
   );
 }
