@@ -1,109 +1,89 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
-import DeviceMap from "@/components/DeviceMap";
+import { useEffect, useRef } from "react";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
 
-interface DeviceEvent {
-  device_id: string;
-  event_type: string;
-  latitude: number | null;
-  longitude: number | null;
-  last_seen: string;
-  gps_fix: boolean;
+// --- FIX LEAFLET ICONS FOR NEXT.JS / VERCEL ---
+delete (L.Icon.Default.prototype as any)._getIconUrl;
+
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl:
+    "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
+  iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
+  shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
+});
+
+// --- TYPES ---
+interface Point {
+  latitude: number;
+  longitude: number;
 }
 
-export default function DeviceDetailPage() {
-  const params = useParams();
-  const id = params.id as string;
+interface Props {
+  deviceId: string;
+  points: Point[];
+}
 
-  const [events, setEvents] = useState<DeviceEvent[] | null>(null);
-  const [loading, setLoading] = useState(true);
+export default function DeviceMap({ deviceId, points }: Props) {
+  const mapRef = useRef<L.Map | null>(null);
+  const markerRef = useRef<L.Marker | null>(null);
+  const polylineRef = useRef<L.Polyline | null>(null);
 
   useEffect(() => {
-    async function fetchEvents() {
-      try {
-        const res = await fetch(
-          `https://api.oathzsecurity.com/device/${id}/events`,
-          { cache: "no-store" }
-        );
-        const data = await res.json();
-        setEvents(data);
-      } catch (err) {
-        console.error("Error fetching events:", err);
-      } finally {
-        setLoading(false);
-      }
+    if (!points.length) return;
+
+    const coords = points.map(
+      (p) => [p.latitude, p.longitude] as [number, number]
+    );
+
+    const latest = coords[coords.length - 1];
+
+    // --- INIT MAP ON FIRST RUN ---
+    if (!mapRef.current) {
+      mapRef.current = L.map("device-map").setView(latest, 17);
+
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: "&copy; OpenStreetMap contributors",
+      }).addTo(mapRef.current);
     }
 
-    fetchEvents();
-  }, [id]);
+    const map = mapRef.current!;
 
-  if (loading) {
-    return (
-      <main style={{ padding: 24 }}>
-        <h1 style={{ fontSize: 24, fontWeight: "bold" }}>Device: {id}</h1>
-        <p>Loading events...</p>
-      </main>
-    );
-  }
+    // --- BREADCRUMB POLYLINE ---
+    if (!polylineRef.current) {
+      polylineRef.current = L.polyline(coords, {
+        color: "#3b82f6",
+        weight: 4,
+        opacity: 0.85,
+      }).addTo(map);
+    } else {
+      polylineRef.current.setLatLngs(coords);
+    }
 
-  if (!events || events.length === 0) {
-    return (
-      <main style={{ padding: 24 }}>
-        <h1 style={{ fontSize: 24, fontWeight: "bold" }}>Device: {id}</h1>
-        <p>No events found yet for this device.</p>
-      </main>
-    );
-  }
+    // --- ANIMATED MARKER ---
+    if (!markerRef.current) {
+      markerRef.current = L.marker(latest).addTo(map);
+    } else {
+      markerRef.current.setLatLng(latest);
+    }
 
-  const latest = events[events.length - 1];
+    // --- AUTO-FIT ROUTE ---
+    map.fitBounds(polylineRef.current.getBounds(), {
+      padding: [40, 40],
+    });
+  }, [deviceId, points]);
 
   return (
-    <main style={{ padding: 24 }}>
-      <h1 style={{ fontSize: 24, fontWeight: "bold" }}>Device: {id}</h1>
-
-      <div style={{ marginTop: 24 }}>
-        <DeviceMap
-          latitude={latest.latitude}
-          longitude={latest.longitude}
-          deviceId={id}
-        />
-      </div>
-
-      <h2 style={{ marginTop: 32, fontSize: 20, fontWeight: "bold" }}>
-        Latest Event
-      </h2>
-
-      <pre
-        style={{
-          marginTop: 12,
-          padding: 16,
-          background: "#111",
-          color: "#0f0",
-          borderRadius: 8,
-          overflowX: "auto",
-        }}
-      >
-        {JSON.stringify(latest, null, 2)}
-      </pre>
-
-      <h2 style={{ marginTop: 32, fontSize: 20, fontWeight: "bold" }}>
-        All Events ({events.length})
-      </h2>
-
-      <pre
-        style={{
-          marginTop: 12,
-          padding: 16,
-          background: "#111",
-          color: "#0f0",
-          borderRadius: 8,
-          overflowX: "auto",
-        }}
-      >
-        {JSON.stringify(events, null, 2)}
-      </pre>
-    </main>
+    <div
+      id="device-map"
+      style={{
+        height: "380px",
+        width: "100%",
+        borderRadius: "16px",
+        overflow: "hidden",
+        border: "1px solid #333",
+      }}
+    />
   );
 }
