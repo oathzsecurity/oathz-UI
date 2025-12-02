@@ -5,12 +5,11 @@ import DeviceMap from "@/components/DeviceMap";
 
 interface DeviceEvent {
   device_id: string;
-  last_seen: string;
+  event_type: string;
   latitude: number | null;
   longitude: number | null;
+  last_seen: string;
   gps_fix: boolean;
-  state: string;
-  event_type: string;
 }
 
 export default function DeviceDetailPage({ params }: { params: { id: string } }) {
@@ -20,84 +19,90 @@ export default function DeviceDetailPage({ params }: { params: { id: string } })
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function load() {
+    async function fetchEvents() {
       try {
         const res = await fetch(
           `https://api.oathzsecurity.com/device/${id}/events`,
           { cache: "no-store" }
         );
         const data = await res.json();
-
-        // Reverse order: latest first
-        const sorted = data.reverse();
-
-        setEvents(sorted);
+        setEvents(data);
       } catch (err) {
-        console.error("Failed to fetch device events", err);
-        setEvents([]);
+        console.error("Failed to fetch events", err);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     }
 
-    load();
+    fetchEvents();
   }, [id]);
 
+  // Show spinner/loading while fetching
   if (loading) {
     return (
-      <main style={{ padding: "24px" }}>
-        <h1 className="text-3xl font-bold mb-6">Device: {id}</h1>
-        <p>Loading…</p>
+      <main style={{ padding: 24 }}>
+        <h1 style={{ fontSize: 24, fontWeight: "bold" }}>Device: {id}</h1>
+        <p>Loading events...</p>
       </main>
     );
   }
 
+  // Show "no data" message — BUT keep the UI container visible
   if (!events || events.length === 0) {
     return (
-      <main style={{ padding: "24px" }}>
-        <h1 className="text-3xl font-bold mb-6">Device: {id}</h1>
-        <p>No data received yet for this device.</p>
+      <main style={{ padding: 24 }}>
+        <h1 style={{ fontSize: 24, fontWeight: "bold" }}>Device: {id}</h1>
+        <p>No events found yet for this device.</p>
       </main>
     );
   }
 
-  const latest = events[0]; // newest event
-  const hasGPS = latest.latitude && latest.longitude;
+  // We have events now
+  const latest = events[events.length - 1];
+  const lat = latest.latitude;
+  const lon = latest.longitude;
 
   return (
-    <main style={{ padding: "24px" }}>
-      <h1 className="text-3xl font-bold mb-6">Device: {id}</h1>
+    <main style={{ padding: 24 }}>
+      <h1 style={{ fontSize: 24, fontWeight: "bold" }}>Device: {id}</h1>
 
-      {/* 🗺️ MAP */}
-      {hasGPS && (
-        <div style={{ marginBottom: "24px" }}>
-          <DeviceMap
-            latitude={latest.latitude}
-            longitude={latest.longitude}
-            deviceId={id}
-          />
-        </div>
-      )}
-
-      {/* 📊 STATUS */}
-      <div className="border rounded-lg p-6 bg-black text-green-400 mb-6">
-        <p><strong>Last seen:</strong> {latest.last_seen}</p>
-        <p><strong>State:</strong> {latest.state}</p>
-        <p><strong>GPS Fix:</strong> {latest.gps_fix ? "Yes" : "No"}</p>
-        <p>
-          <strong>Coordinates:</strong>{" "}
-          {latest.latitude}, {latest.longitude}
-        </p>
+      <div style={{ marginTop: 24 }}>
+        <DeviceMap
+          latitude={lat}
+          longitude={lon}
+          deviceId={id}
+        />
       </div>
 
-      {/* 📝 RAW EVENTS */}
+      <h2 style={{ marginTop: 32, fontSize: 20, fontWeight: "bold" }}>
+        Latest Event
+      </h2>
+
       <pre
         style={{
+          marginTop: 12,
+          padding: 16,
           background: "#111",
           color: "#0f0",
-          padding: "16px",
-          borderRadius: "8px",
+          borderRadius: 8,
           overflowX: "auto",
-          fontSize: "14px",
+        }}
+      >
+        {JSON.stringify(latest, null, 2)}
+      </pre>
+
+      <h2 style={{ marginTop: 32, fontSize: 20, fontWeight: "bold" }}>
+        All Events ({events.length})
+      </h2>
+
+      <pre
+        style={{
+          marginTop: 12,
+          padding: 16,
+          background: "#111",
+          color: "#0f0",
+          borderRadius: 8,
+          overflowX: "auto",
         }}
       >
         {JSON.stringify(events, null, 2)}
